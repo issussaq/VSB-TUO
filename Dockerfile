@@ -1,4 +1,5 @@
-FROM debian:latest
+# Build Phase 
+FROM debian:latest as builder
 LABEL maintainer='Miroslav Nekoranec <mn@mn.sk>'
 
 RUN apt update -qq && \
@@ -76,6 +77,53 @@ RUN mkdir -p /etc/asterisk/ && \
 
 # Uncomment this if you want to remove the asterisk source files.
 #RUN rm -rf /usr/src/asterisk
+
+##################################################
+# Final Phase
+FROM debian:latest as final
+
+RUN apt update -qq && \
+    DEBIAN_FRONTEND=noninteractive \
+    apt install -y --no-install-recommends \
+        file \
+        binutils-dev \
+        libedit-dev \
+        ca-certificates \
+        libsqlite3-dev \
+        libsrtp2-dev \
+        curl \
+        less \
+        libgsm1 \
+        libresample1 \
+        libxml2 \
+        procps \
+        python3-pip \
+        tcpdump \
+        unixodbc \
+        postgresql-client \
+        odbc-postgresql \
+        uuid \
+        vim-tiny \
+        xmlstarlet \
+        iproute2 \
+        sqlite3 \
+        && \
+    apt purge -y --auto-remove && rm -rf /var/lib/apt/lists/*
+
+RUN useradd --system asterisk
+
+COPY --from=builder --chown=asterisk:asterisk /usr/lib/libasterisk* /usr/lib/
+COPY --from=builder --chown=asterisk:asterisk /usr/lib/asterisk/ /usr/lib/asterisk/
+COPY --from=builder --chown=asterisk:asterisk /usr/sbin/asterisk /usr/sbin/asterisk
+COPY --from=builder --chown=asterisk:asterisk /var/spool/asterisk/ /var/spool/asterisk/
+COPY --from=builder --chown=asterisk:asterisk /var/lib/asterisk/ /var/lib/asterisk/
+COPY --from=builder --chown=asterisk:asterisk /var/run/asterisk/ /var/run/asterisk/
+# mkdir for the following does not allow chown in the next step
+COPY --from=builder --chown=asterisk:asterisk /var/log/asterisk/ /var/log/asterisk/
+
+RUN mkdir -p /etc/asterisk/
+
+RUN chown -R asterisk:asterisk  /etc/asterisk
 
 WORKDIR /home/asterisk
 USER asterisk
